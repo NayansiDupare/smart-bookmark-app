@@ -18,7 +18,7 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex gap-6 items-center">
-            <Link href="/" className="hover:text-primary transition">
+            <Link href="/#home" className="hover:text-primary transition">
               Home
             </Link>
             <Link href="/#features" className="hover:text-primary transition">

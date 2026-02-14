@@ -59,6 +59,10 @@ export default function Dashboard() {
   const [deleteFolderTarget, setDeleteFolderTarget] =
     useState<Folder | null>(null);
 
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
+    const [message, setMessage] = useState("");
+
    
 
   useEffect(() => {
@@ -322,6 +326,8 @@ export default function Dashboard() {
     window.location.href = "/";
   };
 
+
+  
   /* ================= UI ================= */
 
   return (

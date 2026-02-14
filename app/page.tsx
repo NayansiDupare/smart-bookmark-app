@@ -5,10 +5,39 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { LayoutDashboard, Search, Folder } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import toast from "react-hot-toast";
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
 
 
 
 export default function Home() {
+
+  const [name, setName] = useState("");
+      const [email, setEmail] = useState("");
+      const [message, setMessage] = useState("");
+
+      const handleSubmit = async () => {
+  if (!name || !email || !message) {
+    return toast.error("Please fill all fields");
+  }
+
+  const { error } = await supabase
+    .from("contact_messages")
+    .insert([{ name, email, message }]);
+
+  if (error) {
+    toast.error("Failed to send message");
+  } else {
+    toast.success("Message sent successfully!");
+    setName("");
+    setEmail("");
+    setMessage("");
+  }
+};
+
+  
   return (
     <div className="bg-background text-foreground">
 
@@ -198,19 +227,26 @@ export default function Home() {
           <input
             placeholder="Your Name"
             className="input-field"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
           />
 
           <input
             placeholder="Your Email"
             className="input-field"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <textarea
             placeholder="Your Message"
             className="input-field h-32"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
           />
 
-          <button className="btn-primary w-full">
+
+          <button onClick={handleSubmit} className="btn-primary w-full">
             Send Message
           </button>
         </motion.div>
