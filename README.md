@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Smart Bookmark App
 
-## Getting Started
+A modern bookmark manager built with Next.js (App Router) and Supabase.
 
-First, run the development server:
+## 🚀 Live Demo
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Live URL: https://your-vercel-url.vercel.app  
+GitHub Repo: https://github.com/your-username/google-bookmark-app
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📌 Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- 🔐 Google OAuth Login (No email/password)
+- ➕ Add bookmarks (Title + URL)
+- 🗑 Delete your own bookmarks
+- ✏️ Edit bookmarks
+- 📁 Folder management
+- 📌 Pin bookmark (moves to top automatically)
+- 🔄 Real-time updates (multi-tab sync)
+- 🎨 Responsive UI with Tailwind CSS
+- ☁️ Deployed on Vercel
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠 Tech Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Next.js (App Router)**
+- **Supabase**
+  - Authentication (Google OAuth)
+  - PostgreSQL Database
+  - Realtime
+  - Row Level Security (RLS)
+- **Tailwind CSS**
+- **Vercel** (Deployment)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🔐 Authentication
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Google OAuth only
+- No email/password login
+- Session managed using Supabase Auth
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 🧱 Database Design
+
+### bookmarks table
+
+| Column      | Type      |
+|------------|----------|
+| id         | uuid     |
+| title      | text     |
+| url        | text     |
+| user_id    | uuid     |
+| folder_id  | uuid     |
+| pinned     | boolean  |
+| position   | integer  |
+| created_at | timestamp|
+
+### folders table
+
+| Column      | Type      |
+|------------|----------|
+| id         | uuid     |
+| name       | text     |
+| user_id    | uuid     |
+| pinned     | boolean  |
+| position   | integer  |
+| created_at | timestamp|
+
+---
+
+## 🔒 Row Level Security (RLS)
+
+Policies ensure users can only access their own data:
+
+auth.uid() = user_id
+
+
+Applied for:
+- SELECT
+- INSERT
+- UPDATE
+- DELETE
+
+---
+
+## 🔄 Real-Time Functionality
+
+Supabase Realtime is enabled using:
+
+---js
+supabase.channel("realtime-bookmarks")
+  .on("postgres_changes", ...)

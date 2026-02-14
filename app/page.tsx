@@ -1,65 +1,225 @@
+"use client";
+
 import Image from "next/image";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { LayoutDashboard, Search, Folder } from "lucide-react";
+import Navbar from "@/components/Navbar";
+
+
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="bg-background text-foreground">
+
+      <Navbar />
+
+      {/* HERO */}
+      <section
+        id="home"
+        className="pt-32 pb-24 px-10"
+      >
+        <div className="grid md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
+
+          <motion.div
+            initial={{ opacity: 0, x: -60 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <h2 className="text-5xl font-bold mb-6">
+              Powerful. Organized. Effortless.
+            </h2>
+
+            <p className="text-primary mb-8 text-lg">
+              Save, organize, search and manage
+              your bookmarks in one clean system.
+            </p>
+
+            <Link href="/login">
+              <button className="btn-primary">
+                Get Started Free
+              </button>
+            </Link>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
           >
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              src="/images/hero.png"
+              alt="Hero"
+              width={600}
+              height={500}
+              className="w-full"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </motion.div>
+
         </div>
-      </main>
+      </section>
+
+      {/* FEATURES */}
+<section
+  id="features"
+  className="py-24 px-10 bg-soft"
+>
+  <h2 className="text-4xl font-bold text-center mb-16">
+    Organize your bookmarks.
+  </h2>
+
+  <div className="grid md:grid-cols-3 gap-10 max-w-6xl mx-auto">
+
+    {[
+      {
+        title: "Smart Dashboard",
+        desc: "Manage all bookmarks in one clean and powerful interface.",
+        Icon: LayoutDashboard,
+      },
+      {
+        title: "Search & Filter",
+        desc: "Quickly find bookmarks with intelligent search and filtering.",
+        Icon: Search,
+      },
+      {
+        title: "Folder Structure",
+        desc: "Organize links into folders and keep everything structured.",
+        Icon: Folder,
+      },
+    ].map((feature, i) => (
+      <motion.div
+        key={i}
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+        className="
+          relative card text-center
+          border border-transparent
+          hover:border-primary
+          hover:scale-105 hover:-translate-y-2
+          hover:shadow-[0_0_25px_rgba(135,134,114,0.4)]
+          transition duration-300
+          cursor-pointer
+        "
+      >
+        {/* Glow Layer */}
+        <div className="
+          absolute inset-0 rounded-2xl
+          opacity-0 hover:opacity-100
+          transition duration-300
+          pointer-events-none
+          bg-gradient-to-r from-primary/10 via-transparent to-primary/10
+        " />
+
+        <div className="relative z-10">
+          <feature.Icon
+            size={40}
+            className="mx-auto mb-6 text-primary transition"
+          />
+
+          <h3 className="font-semibold text-xl mb-4">
+            {feature.title}
+          </h3>
+
+          <p className="text-primary">
+            {feature.desc}
+          </p>
+        </div>
+      </motion.div>
+    ))}
+
+  </div>
+</section>
+
+      {/* ABOUT */}
+      <section
+        id="about"
+        className="py-24 px-10"
+      >
+        <div className="grid md:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
+
+          <motion.div
+            initial={{ opacity: 0, x: -60 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+          >
+            <Image
+              src="/images/about.png"
+              alt="About"
+              width={600}
+              height={500}
+              className="w-full"
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 60 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-4xl font-bold mb-6">
+              Built for productivity.
+            </h2>
+
+            <p className="text-primary text-lg mb-6">
+              Smart Bookmark is designed to help
+              students, developers, and teams
+              manage links without clutter.
+            </p>
+
+            <p>
+              Clean UI. Fast performance.
+              Secure Google authentication.
+            </p>
+          </motion.div>
+
+        </div>
+      </section>
+
+      {/* CONTACT */}
+      <section
+        id="contact"
+        className="py-24 px-10 bg-soft"
+      >
+        <h2 className="text-4xl font-bold text-center mb-12">
+          Contact Us
+        </h2>
+
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          viewport={{ once: true }}
+          className="max-w-xl mx-auto card space-y-4"
+        >
+          <input
+            placeholder="Your Name"
+            className="input-field"
+          />
+
+          <input
+            placeholder="Your Email"
+            className="input-field"
+          />
+
+          <textarea
+            placeholder="Your Message"
+            className="input-field h-32"
+          />
+
+          <button className="btn-primary w-full">
+            Send Message
+          </button>
+        </motion.div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="text-center py-6 border-t">
+        © {new Date().getFullYear()} Smart Bookmark
+      </footer>
     </div>
   );
 }
