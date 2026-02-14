@@ -62,9 +62,22 @@ export default function Dashboard() {
    
 
   useEffect(() => {
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession();
+
+    if (!data.session) {
+      window.location.href = "/login";
+      return;
+    }
+
+    // only fetch data AFTER session confirmed
     fetchFolders();
     fetchBookmarks();
-  }, []);
+  };
+
+  checkSession();
+}, []);
+
 
 
 
