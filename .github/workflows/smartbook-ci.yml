@@ -1,26 +1,37 @@
-name: Smart Bookmark CI
+name: SmartBook CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
+    name: Build & Type Check
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name:  Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name:  Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm install
+      - name:  Install Dependencies
+        run: npm ci
 
-      - name: Build Application
+      - name:  Run Lint
+        run: npm run lint
+
+      - name:  Run Type Check
+        run: npx tsc --noEmit
+
+      - name:  Build Project
         run: npm run build
