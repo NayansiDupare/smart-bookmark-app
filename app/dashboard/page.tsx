@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Sidebar from "./components/Sidebar";
+import AddBookmarkForm from "./components/AddBookmarkForm";
+import BookmarkGrid from "./components/BookmarkGrid";
+import DeleteBookmarkModal from "./components/DeleteBookmarkModal";
+import DeleteFolderModal from "./components/DeleteFolderModal";
+import EditFolderModal from "./components/EditFolderModal";
+import EditBookmarkModal from "./components/EditBookmarkModal";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  Plus,
-  Pin,
-  Pencil,
-  Trash,
-  FolderPlus,
-  Folder,
-} from "lucide-react";
 import toast from "react-hot-toast";
-
+import { DndContext } from "@dnd-kit/core";
 
 interface Bookmark {
   id: string;
@@ -20,6 +19,8 @@ interface Bookmark {
   folder_id: string | null;
   pinned: boolean;
   created_at: string;
+  archived?: boolean;
+  bookmark_tags?: any[];
 }
 
 interface Folder {
@@ -29,13 +30,20 @@ interface Folder {
   created_at: string;
 }
 
-
-
+interface Tag {
+  id: string;
+  name: string;
+  created_at: string;
+}
 
 export default function Dashboard() {
+  const [showArchived, setShowArchived] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [newTagName, setNewTagName] = useState("");
 
   const [selectedFolder, setSelectedFolder] =
     useState<string | null>(null);
@@ -56,107 +64,91 @@ export default function Dashboard() {
 
   const [editingFolder, setEditingFolder] =
     useState<Folder | null>(null);
-  const [deleteFolderTarget, setDeleteFolderTarget] =
-    useState<Folder | null>(null);
+  
 
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [message, setMessage] = useState("");
-
-   
+  /* ================= SESSION ================= */
 
   useEffect(() => {
-  const checkSession = async () => {
-    const { data } = await supabase.auth.getSession();
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        window.location.href = "/login";
+        return;
+      }
 
-    if (!data.session) {
-      window.location.href = "/login";
-      return;
-    }
+      fetchFolders();
+      fetchBookmarks();
+      fetchTags();
+    };
 
-    // only fetch data AFTER session confirmed
-    fetchFolders();
-    fetchBookmarks();
-  };
-
-  checkSession();
-}, []);
-
-
-
-
+    checkSession();
+  }, []);
 
 
   useEffect(() => {
-  const bookmarkChannel = supabase
-    .channel("realtime-bookmarks")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "bookmarks",
-      },
-      () => {
-        fetchBookmarks();
-      }
-    )
-    .subscribe();
-
-  const folderChannel = supabase
-    .channel("realtime-folders")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "folders",
-      },
-      () => {
-        fetchFolders();
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(bookmarkChannel);
-    supabase.removeChannel(folderChannel);
-  };
-}, []);
-
+  fetchFolders();
+  fetchBookmarks();
+}, [showArchived]);
 
   /* ================= FETCH ================= */
 
   const fetchFolders = async () => {
+  const { data: userData } =
+    await supabase.auth.getUser();
+  if (!userData.user) return;
+
+  const { data } = await supabase
+    .from("folders")
+    .select("*")
+    .eq("user_id", userData.user.id)
+    .eq("archived", showArchived) // 🔥 important
+    .order("pinned", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (data) setFolders(data);
+};
+
+  const fetchTags = async () => {
     const { data: userData } =
       await supabase.auth.getUser();
     if (!userData.user) return;
 
     const { data } = await supabase
-      .from("folders")
+      .from("tags")
       .select("*")
-      .eq("user_id", userData.user.id)
-      .order("pinned", { ascending: false })
-      .order("created_at", { ascending: true });
+      .eq("user_id", userData.user.id);
 
-    if (data) setFolders(data);
+    if (data) setTags(data);
   };
 
   const fetchBookmarks = async () => {
-    const { data: userData } =
-      await supabase.auth.getUser();
-    if (!userData.user) return;
+  const { data: userData } =
+    await supabase.auth.getUser();
+  if (!userData.user) return;
 
-    const { data } = await supabase
-      .from("bookmarks")
-      .select("*")
-      .eq("user_id", userData.user.id)
-      .order("pinned", { ascending: false })
-      .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("bookmarks")
+    .select(`
+      *,
+      bookmark_tags (
+        tag:tags (
+          id,
+          name
+        )
+      )
+    `)
+    .eq("user_id", userData.user.id)
+    .eq("archived", showArchived) // 🔥 dynamic
+    .order("pinned", { ascending: false })
+    .order("created_at", { ascending: false });
 
-    if (data) setBookmarks(data);
-  };
+  if (error) {
+    console.error(error);
+    return;
+  }
 
+  if (data) setBookmarks(data);
+};
   /* ================= FOLDER CRUD ================= */
 
   const addFolder = async () => {
@@ -184,6 +176,15 @@ export default function Dashboard() {
     toast.success("Folder created");
   };
 
+  const toggleFolderPin = async (folder: Folder) => {
+    await supabase
+      .from("folders")
+      .update({ pinned: !folder.pinned })
+      .eq("id", folder.id);
+
+    fetchFolders();
+  };
+
   const updateFolder = async () => {
     if (!editingFolder) return;
 
@@ -192,50 +193,152 @@ export default function Dashboard() {
       .update({ name: editingFolder.name })
       .eq("id", editingFolder.id);
 
-    setFolders((prev) =>
-      prev.map((f) =>
-        f.id === editingFolder.id ? editingFolder : f
-      )
-    );
-
     setEditingFolder(null);
-    toast.success("Folder renamed");
-  };
-
-  const confirmDeleteFolder = async () => {
-    if (!deleteFolderTarget) return;
-
-    await supabase
-      .from("bookmarks")
-      .update({ folder_id: null })
-      .eq("folder_id", deleteFolderTarget.id);
-
-    await supabase
-      .from("folders")
-      .delete()
-      .eq("id", deleteFolderTarget.id);
-
-    setFolders((prev) =>
-      prev.filter(
-        (f) => f.id !== deleteFolderTarget.id
-      )
-    );
-
-    if (selectedFolder === deleteFolderTarget.id) {
-      setSelectedFolder(null);
-    }
-
-    setDeleteFolderTarget(null);
-    toast.success("Folder deleted");
-  };
-
-  const toggleFolderPin = async (folder: Folder) => {
-    await supabase
-      .from("folders")
-      .update({ pinned: !folder.pinned })
-      .eq("id", folder.id);
-
     fetchFolders();
+  };
+
+
+const restoreBookmark = async (id: string) => {
+  await supabase
+    .from("bookmarks")
+    .update({ archived: false })
+    .eq("id", id);
+
+  fetchBookmarks();
+};
+
+const restoreFolder = async (id: string) => {
+  await supabase
+    .from("folders")
+    .update({ archived: false })
+    .eq("id", id);
+
+  await supabase
+    .from("bookmarks")
+    .update({ archived: false })
+    .eq("folder_id", id);
+
+  fetchFolders();
+  fetchBookmarks();
+};
+
+
+const archiveBookmark = async (id: string) => {
+  await supabase
+    .from("bookmarks")
+    .update({ archived: true })
+    .eq("id", id);
+
+  fetchBookmarks();
+  toast.success("Bookmark archived");
+};
+
+const archiveFolder = async (id: string) => {
+  // archive folder
+  await supabase
+    .from("folders")
+    .update({ archived: true })
+    .eq("id", id);
+
+  // archive all bookmarks inside
+  await supabase
+    .from("bookmarks")
+    .update({ archived: true })
+    .eq("folder_id", id);
+
+  fetchFolders();
+  fetchBookmarks();
+  toast.success("Folder archived");
+};
+
+const permanentlyDeleteFolder = async (id: string) => {
+  // delete bookmark-tag relations
+  const { data: bookmarksInside } = await supabase
+    .from("bookmarks")
+    .select("id")
+    .eq("folder_id", id);
+
+  if (bookmarksInside) {
+    for (const bm of bookmarksInside) {
+      await supabase
+        .from("bookmark_tags")
+        .delete()
+        .eq("bookmark_id", bm.id);
+    }
+  }
+
+  // delete bookmarks
+  await supabase
+    .from("bookmarks")
+    .delete()
+    .eq("folder_id", id);
+
+  // delete folder
+  await supabase
+    .from("folders")
+    .delete()
+    .eq("id", id);
+
+  fetchFolders();
+  fetchBookmarks();
+  toast.success("Folder permanently deleted");
+};
+
+const permanentlyDeleteBookmark = async (id: string) => {
+  // delete tag relations first
+  await supabase
+    .from("bookmark_tags")
+    .delete()
+    .eq("bookmark_id", id);
+
+  // delete bookmark permanently
+  await supabase
+    .from("bookmarks")
+    .delete()
+    .eq("id", id);
+
+  fetchBookmarks();
+  toast.success("Bookmark permanently deleted");
+};
+
+const handleDragEnd = async (event: any) => {
+  const { active, over } = event;
+
+  if (!over) return;
+
+  const bookmarkId = active.id;
+  const folderId = over.id;
+
+  await supabase
+    .from("bookmarks")
+    .update({ folder_id: folderId === "all" ? null : folderId })
+    .eq("id", bookmarkId);
+
+  fetchBookmarks();
+};
+
+  /* ================= TAG CRUD ================= */
+
+  const createTag = async () => {
+    if (!newTagName) return toast.error("Tag name required");
+
+    const { data: userData } =
+      await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { data } = await supabase
+      .from("tags")
+      .insert([{ name: newTagName, user_id: userData.user.id }])
+      .select()
+      .single();
+
+    setTags((prev) => [...prev, data]);
+    setNewTagName("");
+  };
+
+  const deleteTag = async (id: string) => {
+    await supabase.from("tags").delete().eq("id", id);
+    setTags((prev) => prev.filter((t) => t.id !== id));
   };
 
   /* ================= BOOKMARK CRUD ================= */
@@ -248,50 +351,36 @@ export default function Dashboard() {
       await supabase.auth.getUser();
     if (!userData.user) return;
 
-    await supabase.from("bookmarks").insert([
-      {
-        title,
-        url,
-        folder_id: folderId,
-        pinned: false,
-        user_id: userData.user.id,
-      },
-    ]);
+    const { data: inserted } = await supabase
+      .from("bookmarks")
+      .insert([
+        {
+          title,
+          url,
+          folder_id: folderId,
+          pinned: false,
+          archived: false, // safe
+          user_id: userData.user.id,
+        },
+      ])
+      .select()
+      .single();
 
+    if (selectedTags.length > 0) {
+      const relations = selectedTags.map((tagId) => ({
+        bookmark_id: inserted.id,
+        tag_id: tagId,
+      }));
+
+      await supabase.from("bookmark_tags").insert(relations);
+    }
+
+    setSelectedTags([]);
     setTitle("");
     setUrl("");
     setFolderId(null);
+
     fetchBookmarks();
-    toast.success("Bookmark added");
-  };
-
-  const updateBookmark = async () => {
-    if (!editing) return;
-
-    await supabase
-      .from("bookmarks")
-      .update({
-        title: editing.title,
-        url: editing.url,
-      })
-      .eq("id", editing.id);
-
-    setEditing(null);
-    fetchBookmarks();
-    toast.success("Bookmark updated");
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-
-    await supabase
-      .from("bookmarks")
-      .delete()
-      .eq("id", deleteTarget.id);
-
-    setDeleteTarget(null);
-    fetchBookmarks();
-    toast.success("Bookmark deleted");
   };
 
   const togglePin = async (bookmark: Bookmark) => {
@@ -303,174 +392,83 @@ export default function Dashboard() {
     fetchBookmarks();
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    await supabase
+      .from("bookmarks")
+      .update({ archived: true })
+      .eq("id", deleteTarget.id);
+
+    setDeleteTarget(null);
+    fetchBookmarks();
+  };
+
   /* ================= FILTER ================= */
 
   const visibleBookmarks = bookmarks
     .filter((b) =>
       selectedFolder ? b.folder_id === selectedFolder : true
     )
-    .filter((b) =>
-      b.title.toLowerCase().includes(search.toLowerCase())
-    );
+    .filter((b) => {
+      if (selectedTags.length === 0) return true;
 
-  const getFolderCount = (folderId: string | null) => {
-    return bookmarks.filter((b) =>
-      folderId ? b.folder_id === folderId : true
-    ).length;
-  };
+      const tagIds =
+        b.bookmark_tags?.map((bt: any) => bt.tag.id) || [];
 
-  /* ================= LOGOUT ================= */
+      return selectedTags.every((id) =>
+        tagIds.includes(id)
+      );
+    });
+
+  const getFolderCount = (folderId: string | null) =>
+  visibleBookmarks.filter((b) =>
+    folderId ? b.folder_id === folderId : true
+  ).length;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
   };
 
-
-  
-  /* ================= UI ================= */
-
   return (
-  <div className="min-h-screen bg-background flex flex-col md:flex-row relative">
+     <DndContext onDragEnd={handleDragEnd}>
+    <div className="min-h-screen bg-background flex flex-col md:flex-row relative">
 
-    {/* OVERLAY (Mobile Only) */}
-    {sidebarOpen && (
-      <div
-        className="fixed inset-0 bg-black/40 z-30 md:hidden"
-        onClick={() => setSidebarOpen(false)}
-      />
-    )}
-
-    {/* SIDEBAR */}
-    <div
-      className={`
-        fixed md:static top-0 left-0 h-full md:h-auto
-        w-64 bg-card p-6 shadow-sm flex flex-col justify-between
-        transform transition-transform duration-300 z-40
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        md:translate-x-0
-      `}
-    >
-
-      {/* Close button (mobile only) */}
-      <button
-        onClick={() => setSidebarOpen(false)}
-        className="md:hidden mb-4 btn-outline"
-      >
-        Close
-      </button>
-
-      <div className="space-y-4">
-        <h2 className="font-semibold text-lg">
-          Folders
-        </h2>
-
-        {/* ALL FOLDER */}
+      {sidebarOpen && (
         <div
-          onClick={() => {
-            setSelectedFolder(null);
-            setSidebarOpen(false);
-          }}
-          className={`cursor-pointer px-3 py-2 rounded-lg ${
-            selectedFolder === null
-              ? "bg-soft font-medium"
-              : "hover:bg-soft/60"
-          }`}
-        >
-          <div className="flex justify-between items-center">
-            <span className="flex items-center gap-2">
-              <Folder size={16} /> All
-            </span>
-            <span className="text-sm text-primary">
-              {getFolderCount(null)}
-            </span>
-          </div>
-        </div>
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-        {/* FOLDERS */}
-        {folders.map((folder) => (
-          <div
-            key={folder.id}
-            className={`px-3 py-2 rounded-lg ${
-              selectedFolder === folder.id
-                ? "bg-soft font-medium"
-                : "hover:bg-soft/60"
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <span
-                onClick={() => {
-                  setSelectedFolder(folder.id);
-                  setSidebarOpen(false);
-                }}
-                className="cursor-pointer flex items-center gap-2"
-              >
-                <Folder size={16} />
-                {folder.name}
-              </span>
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        folders={folders}
+        selectedFolder={selectedFolder}
+        setSelectedFolder={setSelectedFolder}
+        getFolderCount={getFolderCount}
+        newFolderName={newFolderName}
+        setNewFolderName={setNewFolderName}
+        addFolder={addFolder}
+        tags={tags}
+        newTagName={newTagName}
+        setNewTagName={setNewTagName}
+        createTag={createTag}
+        toggleFolderPin={toggleFolderPin}
+        setEditingFolder={setEditingFolder}
+        archiveFolder={archiveFolder}
+        restoreFolder={restoreFolder}
+        permanentlyDeleteFolder={permanentlyDeleteFolder}
+        deleteTag={deleteTag}
+        showArchived={showArchived}            // ✅ add this
+        setShowArchived={setShowArchived} 
+        handleLogout={handleLogout}
+      />
 
-              <span className="text-sm text-primary">
-                {getFolderCount(folder.id)}
-              </span>
-            </div>
-
-            <div className="flex gap-3 mt-2">
-              <Pin
-                size={14}
-                className={
-                  folder.pinned
-                    ? "text-primary cursor-pointer"
-                    : "text-gray-400 cursor-pointer"
-                }
-                onClick={() => toggleFolderPin(folder)}
-              />
-              <Pencil
-                size={14}
-                className="cursor-pointer"
-                onClick={() => setEditingFolder(folder)}
-              />
-              <Trash
-                size={14}
-                className="cursor-pointer text-red-500"
-                onClick={() => setDeleteFolderTarget(folder)}
-              />
-            </div>
-          </div>
-        ))}
-
-        {/* ADD FOLDER */}
-        <div className="pt-4 border-t space-y-2">
-          <input
-            placeholder="New folder..."
-            className="input-field w-full"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-          />
-
-          <button
-            onClick={addFolder}
-            className="btn-outline w-full flex items-center justify-center gap-2"
-          >
-            <FolderPlus size={16} />
-            Add Folder
-          </button>
-        </div>
-      </div>
-
-      <div className="pt-6 border-t mt-6">
-        <button
-          onClick={handleLogout}
-          className="w-full px-4 py-2 rounded-lg bg-red-500 text-white hover:opacity-90 transition"
-        >
-          Logout
-        </button>
-      </div>
-    </div>
-
-    {/* MAIN */}
-    <div className="flex-1 p-6 md:p-10">
-
-      {/* TOGGLE BUTTON (Mobile Only) */}
+      <div className="flex-1 p-6 md:p-10">
+{/* TOGGLE BUTTON (Mobile Only) */}
       <button
         onClick={() => setSidebarOpen(true)}
         className="md:hidden mb-4 btn-outline"
@@ -488,251 +486,46 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ADD BOOKMARK */}
-      <div className="card mb-8 space-y-4">
+        <AddBookmarkForm
+          title={title}
+          setTitle={setTitle}
+          url={url}
+          setUrl={setUrl}
+          folderId={folderId}
+          setFolderId={setFolderId}
+          folders={folders}
+          tags={tags}
+          selectedTags={selectedTags}
+          setSelectedTags={setSelectedTags}
+          addBookmark={addBookmark}
+        />
 
-        <div className="flex flex-col md:flex-row gap-4">
-          <input
-            placeholder="Title"
-            className="input-field flex-1"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-
-          <input
-            placeholder="https://example.com"
-            className="input-field flex-1"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-          <select
-            className="input-field flex-1"
-            value={folderId ?? ""}
-            onChange={(e) =>
-              setFolderId(e.target.value || null)
-            }
-          >
-            <option value="">No Folder</option>
-            {folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.name}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={addBookmark}
-            className="btn-primary flex items-center justify-center gap-2 w-full md:w-auto"
-          >
-            <Plus size={16} />
-            Add
-          </button>
-        </div>
+        <BookmarkGrid
+        bookmarks={visibleBookmarks}
+        togglePin={togglePin}
+        setEditing={setEditing}
+        showArchived={showArchived}
+        restoreBookmark={restoreBookmark}
+        archiveBookmark={archiveBookmark}
+        permanentlyDeleteBookmark={permanentlyDeleteBookmark}
+      />
       </div>
 
-      {/* BOOKMARK GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {visibleBookmarks.map((bm) => (
-          <div
-            key={bm.id}
-            className={`card ${
-              bm.pinned ? "border-2 border-primary" : ""
-            }`}
-          >
-            <div className="flex justify-between">
-              <div className="min-w-0">
-                <p className="font-semibold truncate">
-                  {bm.title}
-                </p>
-                <p className="text-sm text-primary truncate">
-                  {bm.url}
-                </p>
-              </div>
-
-              <div className="flex gap-3 items-center">
-                <Pin
-                  size={18}
-                  className={
-                    bm.pinned
-                      ? "text-primary cursor-pointer"
-                      : "text-gray-400 cursor-pointer"
-                  }
-                  onClick={() => togglePin(bm)}
-                />
-                <Pencil
-                  size={16}
-                  className="cursor-pointer"
-                  onClick={() => setEditing(bm)}
-                />
-                <Trash
-                  size={16}
-                  className="cursor-pointer text-red-500"
-                  onClick={() => setDeleteTarget(bm)}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* DELETE BOOKMARK MODAL */}
-    {deleteTarget && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-xl w-96 shadow-lg space-y-4">
-
-          <h3 className="text-lg font-semibold">
-            Delete Bookmark?
-          </h3>
-
-          <p className="text-sm text-gray-500">
-            Are you sure you want to delete{" "}
-            <span className="font-medium">
-              {deleteTarget.title}
-            </span>
-            ?
-          </p>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              onClick={() => setDeleteTarget(null)}
-              className="px-4 py-2 rounded-lg border"
-            >
-              Cancel
-            </button>
-
-            <button
-              onClick={confirmDelete}
-              className="px-4 py-2 rounded-lg bg-red-500 text-white hover:opacity-90"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* DELETE FOLDER MODAL */}
-{deleteFolderTarget && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-xl w-96 shadow-lg space-y-4">
-
-      <h3 className="text-lg font-semibold">
-        Delete Folder?
-      </h3>
-
-      <p className="text-sm text-gray-500">
-        Are you sure you want to delete{" "}
-        <span className="font-medium">
-          {deleteFolderTarget.name}
-        </span>
-        ?
-      </p>
-
-      <div className="flex justify-end gap-3 pt-4">
-        <button
-          onClick={() => setDeleteFolderTarget(null)}
-          className="px-4 py-2 rounded-lg border"
-        >
-          Cancel
-        </button>
-
-        <button
-          onClick={confirmDeleteFolder}
-          className="px-4 py-2 rounded-lg bg-red-500 text-white hover:opacity-90"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-{/* EDIT BOOKMARK MODAL */}
-{editing && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-xl w-96 shadow-lg space-y-4">
-
-      <h3 className="text-lg font-semibold">
-        Edit Bookmark
-      </h3>
-
-      <input
-        className="input-field w-full"
-        value={editing.title}
-        onChange={(e) =>
-          setEditing({ ...editing, title: e.target.value })
-        }
+      
+      <EditBookmarkModal
+        bookmark={editing}
+        setBookmark={setEditing}
+        onCancel={() => setEditing(null)}
+        onSave={() => {}}
       />
 
-      <input
-        className="input-field w-full"
-        value={editing.url}
-        onChange={(e) =>
-          setEditing({ ...editing, url: e.target.value })
-        }
+      <EditFolderModal
+        folder={editingFolder}
+        setFolder={setEditingFolder}
+        onCancel={() => setEditingFolder(null)}
+        onSave={updateFolder}
       />
-
-      <div className="flex justify-end gap-3 pt-4">
-        <button
-          onClick={() => setEditing(null)}
-          className="px-4 py-2 rounded-lg border"
-        >
-          Cancel
-        </button>
-
-        <button
-          onClick={updateBookmark}
-          className="px-4 py-2 rounded-lg bg-primary text-white"
-        >
-          Save
-        </button>
-      </div>
     </div>
-  </div>
-)}
-{/* EDIT FOLDER MODAL */}
-{editingFolder && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-xl w-96 shadow-lg space-y-4">
-
-      <h3 className="text-lg font-semibold">
-        Rename Folder
-      </h3>
-
-      <input
-        className="input-field w-full"
-        value={editingFolder.name}
-        onChange={(e) =>
-          setEditingFolder({
-            ...editingFolder,
-            name: e.target.value,
-          })
-        }
-      />
-
-      <div className="flex justify-end gap-3 pt-4">
-        <button
-          onClick={() => setEditingFolder(null)}
-          className="px-4 py-2 rounded-lg border"
-        >
-          Cancel
-        </button>
-
-        <button
-          onClick={updateFolder}
-          className="px-4 py-2 rounded-lg bg-primary text-white"
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-
-  </div>
-);
+    </DndContext>
+  );
 }
