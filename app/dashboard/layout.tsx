@@ -11,11 +11,19 @@ export default function DashboardLayout({
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) window.location.href = "/";
-      else setUser(data.user);
-    });
-  }, []);
+  const checkUser = async () => {
+    const response = await supabase.auth.getUser();
+    const data = response.data;
+
+    if (!data.user) {
+      window.location.href = "/";
+    } else {
+      setUser(data.user);
+    }
+  };
+
+  checkUser();
+}, []);
 
   
 
